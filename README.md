@@ -1,47 +1,89 @@
-# AIPJ Mock Hub
+# AIPJ (AI Workspace MVP)
 
-Next.js + Tailwind CSS로 만든 다중 AI 통합 MVP 뼈대입니다. 실제 API 키와 결제 연동 없이도 한 화면에서 여러 AI를 선택하고, 메인 AI가 최종 요약을 만드는 흐름을 먼저 검증합니다.
+여러 AI를 **한 번에 비교**하고, 필요하면 **요약 AI로 정리**까지 하는 멀티 AI 오케스트레이션 프로젝트입니다.
 
-## 포함 기능
+> 비전 문서: [`PJvision.md`](./PJvision.md)  
+> 운영/개발 현황: [`진행상황.md`](./진행상황.md)
 
-- 여러 AI 선택
-- 메인 AI 1개 지정
-- 질문 1개 입력 후 AI별 mock 응답 표시
-- 메인 AI mock 요약 출력
-- 가짜 비용 계산
-- 키 입력 시 실제 검증 없이 로드 상태만 표시
+---
 
-## 파일 구조
+## 프로젝트 비전
 
-- [app/page.js](app/page.js) - 화면과 mock 스트리밍 로직
-- [lib/mockAis.js](lib/mockAis.js) - AI 목록, mock 응답, 요약, 가짜 비용 계산
-- [app/layout.js](app/layout.js) - 글로벌 폰트와 메타데이터
-- [app/globals.css](app/globals.css) - 전역 스타일과 배경
+AIPJ는 단순한 단일 AI 채팅 앱이 아니라,
 
-## 실행 방법
+- 한 번의 질문으로 여러 AI 답변을 비교하고
+- 차이/상충 포인트를 더 쉽게 파악하며
+- 사용자(일반/개발자) 수준에 맞는 UX를 제공하는
 
-1. 의존성 설치: `npm install`
-2. 개발 서버 실행: `npm run dev`
-3. 브라우저에서 `http://localhost:3000` 확인
+**AI 작업 환경(AI Workspace)** 을 목표로 합니다.
 
-## 실제 API로 바꾸는 지점
+---
 
-- `lib/mockAis.js`의 `buildMockAnswer`를 실제 provider SDK 호출로 교체
-- `buildMockSummary`를 메인 AI 요약 API로 교체
+## 현재 구현 상태 (MVP)
 
-- `app/page.js`의 키 로드 버튼을 저장/검증 플로우로 교체
+### 핵심 기능
+- 다중 AI 선택 및 병렬 요청
+- 비교 AI와 요약 AI 분리
+  - 1개 선택: 요약 비활성화
+  - 2개 선택: 요약 AI 자동 지정
+  - 3개 이상: 요약 AI 직접 지정
+- 요약 기능 ON/OFF 토글
+- 요약 카드 + 원본 답변 모달(Provider 탭)
+- 요약 OFF 전용 탐색 UI(Focus / Split / Grid)
+- 세션 관리(생성/전환/이름변경/삭제/Pin)
+- 일반 모드 / 개발자 모드 분리
+  - 일반 모드: 최신 모델셋 중심, 단순 UX
+  - 개발자 모드: BYOK + generation 파라미터 제어
 
-## 다음 단계 제안
+### 기술 상태
+- Next.js 15 + React 19 + Tailwind CSS
+- `app/api/chat/route.js` 기반 provider 라우팅 및 TEST/mock 분기
+- 모델/가격/모드별 노출 정책 정리
+- 최근 lint/build 기준 통과 상태 유지
 
-1. provider별 API 어댑터 분리
-2. 대화 히스토리 저장소 추가
-3. 스트리밍 응답을 SSE 또는 서버 액션으로 전환
-4. WebView / Capacitor 래핑 준비
+---
 
+## 빠른 실행
 
-## 수정하고자 하는 사항
-1. AI 선택창 별도로 분리. (UI 정리 필요)
-2. 질문 엔터로 입력, Shift+Enter로 다음 줄 넘어가기
-3. 개발자 모드에선 API 직접 입력 가능하게 만들기(대화 내용, 업로드 파일 저장 등 개발자 DB 사용하기에 특정 구독금액 이상만 사용 가능하게 바꾸기). 서버 모드의 경우 지정된 API로 자동 불러오기. (모델에 따른 가격 책정하여 구독형으로 만들기 -> 구독형에 따라 토큰 차등 제한 만들기)
-4. 기본 System_instruction 구성 필요(단답으로 답 나오는 문제)
-5. 메인 AI와는 별도로 요약 AI만 만들까 고민 -> 요약 AI의 경우 판단 밑 기타 검색은 제외하고 다른 AI의 답변들만 정리하는 목적.
+```bash
+npm install
+npm run dev
+```
+
+브라우저에서 `http://localhost:3000` 접속
+
+---
+
+## 주요 디렉토리
+
+- `app/page.js` : 화면 오케스트레이션 컨테이너
+- `app/api/chat/route.js` : 요청 라우팅, mock/실호출 분기, 비용 계산
+- `components/*` : 채팅창/설정/세션/모달 UI
+- `lib/mockAis.js` : provider/model/가격 및 mock 응답 유틸
+- `lib/modelCapabilities.js` : 모델별 파라미터 호환 정책
+
+---
+
+## 다음 우선순위
+
+1. 키 관리 정책 고도화(세션 입력 vs 서버 암호화 저장)
+2. DB 영속화(conversations / turns / usage 등)
+3. 구독/토큰 제한 정책
+4. 비텍스트 모델 결과 텍스트 정규화 파이프라인
+5. LangGraph 등 오케스트레이션 고도화 PoC
+
+상세 TODO와 변경 이력은 [`진행상황.md`](./진행상황.md)에서 지속 업데이트합니다.
+
+---
+
+## 참고
+
+- 이 저장소는 빠른 실험과 UX 검증을 위한 MVP입니다.
+- 민감 정보(`.env*`, API 키, 인증서)는 Git에 커밋하지 않도록 `.gitignore`를 사용합니다.
+- `node_modules/`는 버전관리 대상이 아닙니다.
+
+---
+
+## License
+
+내부 개발/검증용 (필요 시 라이선스 명시 예정)

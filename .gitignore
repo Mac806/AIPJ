@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Production / build artifacts
+build/
+dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
+
+# Local env files (keep secrets out of git)
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Test / coverage
+coverage/
+.nyc_output/
+
+# Cache / temp
+.cache/
+.tmp/
+tmp/
+
+# Optional package manager caches
+.pnpm-store/
+
+# Local tool folders
+.continue/
+
+# Runtime / pid files
+*.pid
+*.seed
+*.pid.lock

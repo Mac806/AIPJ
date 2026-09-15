@@ -3,6 +3,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { MOCK_AI_PROVIDERS, getModelsForProvider } from '@/lib/mockAis';
+import useAccessibleDialog from '@/lib/hooks/useAccessibleDialog';
 
 const FILTER_OPTIONS = [
   { id: 'all', label: '전체' },
@@ -49,6 +50,7 @@ function getVisibleIntegrationStatus(provider, userMode) {
 }
 
 export default function AiSettingsPanel({
+  dialogTitleId,
   userMode,
   setUserMode,
   developerParams,
@@ -93,6 +95,10 @@ export default function AiSettingsPanel({
     topP: String(developerParams.topP),
     maxTokens: String(developerParams.maxTokens),
   });
+  const summaryPersonaDialogRef = useAccessibleDialog(
+    userMode === 'developer' && isSummaryPersonaModalOpen,
+    () => setIsSummaryPersonaModalOpen(false),
+  );
 
   useEffect(() => {
     setDeveloperParamInputs({
@@ -142,7 +148,7 @@ export default function AiSettingsPanel({
   return (
     <aside className="space-y-4 rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-5">
       <div>
-        <h2 className="font-display text-xl font-semibold text-white">비교 AI 선택 / 요약 AI</h2>
+        <h2 id={dialogTitleId} className="font-display text-xl font-semibold text-white">비교 AI 선택 / 요약 AI</h2>
         <p className="mt-1 text-sm text-slate-400">
           비교할 AI를 선택하고, 요약 전용 AI를 별도로 지정할 수 있습니다.
         </p>
@@ -343,6 +349,7 @@ export default function AiSettingsPanel({
                   id={`model-${provider.id}`}
                   value={selectedModelId}
                   onChange={(event) => handleModelChange(provider.id, event.target.value)}
+                  disabled={!provider.supportsChat}
                   className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
                 >
                   {providerModels.map((model) => (
@@ -359,6 +366,7 @@ export default function AiSettingsPanel({
                   <select
                     value={answerPresetMap[provider.id]}
                     onChange={(event) => setProviderAnswerPreset(provider.id, event.target.value)}
+                    disabled={!provider.supportsChat}
                     className="mt-2 w-full rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400/40"
                   >
                     {Object.entries(answerPresetOptions).map(([presetId, preset]) => (
@@ -402,6 +410,7 @@ export default function AiSettingsPanel({
                       onChange={(event) =>
                         setProviderCustomAnswerInstructionEnabled(provider.id, event.target.checked)
                       }
+                      disabled={!provider.supportsChat}
                       className="h-4 w-4 rounded border-slate-500 bg-slate-900 text-cyan-400"
                     />
 이 AI에 커스텀 응답 인터렉션 사용
@@ -465,12 +474,14 @@ export default function AiSettingsPanel({
                         [provider.id]: event.target.value,
                       }))
                     }
+                    disabled={!provider.supportsChat}
                     placeholder={`${provider.shortName} 키`}
                     className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-cyan-400/40 focus:ring-2 focus:ring-cyan-400/20"
                   />
                   <button
                     type="button"
                     onClick={() => handleLoadKey(provider.id)}
+                    disabled={!provider.supportsChat}
                     className="w-full rounded-2xl border border-white/10 bg-slate-900 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-cyan-400/30"
                   >
                     키 불러오기 ({keyStatuses[provider.id]})
@@ -501,10 +512,17 @@ aria-label="요약 인터렉션 설정 닫기"
             className="absolute inset-0"
           />
 
-          <section className="relative z-10 w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-glow">
+          <section
+            ref={summaryPersonaDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="summary-persona-dialog-title"
+            tabIndex={-1}
+            className="relative z-10 w-full max-w-2xl rounded-3xl border border-white/10 bg-slate-950 p-5 shadow-glow"
+          >
             <div className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
               <div>
-                <h3 className="text-lg font-semibold text-white">요약 AI 인터렉션 설정</h3>
+                <h3 id="summary-persona-dialog-title" className="text-lg font-semibold text-white">요약 AI 인터렉션 설정</h3>
                 <p className="mt-1 text-xs text-slate-400">
                   개발자 모드 전용 설정입니다. 커스텀 인터렉션을 직접 입력할 수 있습니다.
                 </p>

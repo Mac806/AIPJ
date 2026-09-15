@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import useAccessibleDialog from '@/lib/hooks/useAccessibleDialog';
 import { MOCK_AI_PROVIDERS, getModelLabel } from '@/lib/mockAis';
 import { formatUSD, getResponseStatusLabel } from '@/lib/utils';
 
@@ -262,6 +263,10 @@ export default function ChatWindow({
     () => activeTurns.find((turn) => turn.id === openedTurnId) ?? null,
     [activeTurns, openedTurnId],
   );
+  const originalAnswersDialogRef = useAccessibleDialog(
+    Boolean(openedTurn),
+    () => setOpenedTurnId(null),
+  );
 
   const openedProviderIds = useMemo(() => {
     if (!openedTurn) {
@@ -292,21 +297,6 @@ export default function ChatWindow({
       setSelectedProviderId(openedProviderIds[0] ?? '');
     }
   }, [openedTurn, openedProviderIds, selectedProviderId]);
-
-  useEffect(() => {
-    if (!openedTurn) {
-      return undefined;
-    }
-
-    const handleEscape = (event) => {
-      if (event.key === 'Escape') {
-        setOpenedTurnId(null);
-      }
-    };
-
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [openedTurn]);
 
   useEffect(() => {
     const syncViewportWidth = () => {
@@ -778,10 +768,17 @@ export default function ChatWindow({
             className="absolute inset-0"
           />
 
-          <section className="relative z-10 flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-glow">
+          <section
+            ref={originalAnswersDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="original-answers-dialog-title"
+            tabIndex={-1}
+            className="relative z-10 flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-slate-950 shadow-glow"
+          >
             <header className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
               <div className="min-w-0">
-                <h3 className="truncate text-lg font-semibold text-white">원본 답변</h3>
+                <h3 id="original-answers-dialog-title" className="truncate text-lg font-semibold text-white">원본 답변</h3>
                 <p className="mt-1 truncate text-xs text-slate-400">질문: {openedTurn.question}</p>
               </div>
               <button

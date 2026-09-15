@@ -2,6 +2,7 @@
 'use client';
 
 import { LoginSettingsCard, UsageSummaryCard, TextSizeCard } from '@/components/settings';
+import useAccessibleDialog from '@/lib/hooks/useAccessibleDialog';
 
 export default function AppSettingsModal({
   isOpen,
@@ -10,6 +11,8 @@ export default function AppSettingsModal({
   chatFontSize,
   setChatFontSize,
 }) {
+  const dialogRef = useAccessibleDialog(isOpen, onClose);
+
   if (!isOpen) {
     return null;
   }
@@ -22,10 +25,17 @@ export default function AppSettingsModal({
         onClick={onClose}
         className="absolute inset-0"
       />
-      <section className="relative z-10 w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950/90 p-6 shadow-glow">
+      <section
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="app-settings-dialog-title"
+        tabIndex={-1}
+        className="relative z-10 w-full max-w-xl rounded-3xl border border-white/10 bg-slate-950/90 p-6 shadow-glow"
+      >
         <div className="flex items-start justify-between gap-3 border-b border-white/10 pb-4">
           <div>
-            <h3 className="text-lg font-semibold text-white">추가 설정 (임시)</h3>
+            <h3 id="app-settings-dialog-title" className="text-lg font-semibold text-white">추가 설정 (임시)</h3>
             <p className="mt-1 text-sm text-slate-400">
               로그인/사용량/글자 크기 설정 공간만 먼저 구성한 더미 창입니다.
             </p>

@@ -5,11 +5,18 @@ import {
   calculateUsageCostUsd,
   getModelById,
   getProviderById,
+  MOCK_AI_PROVIDERS,
+  MOCK_MODEL_OPTIONS,
 } from '@/lib/mockAis';
 import { callProviderAdapter } from '@/lib/providers/serverAdapters';
 import { getExecutionIntegrationStatus } from '@/lib/providerStatus';
 import { sanitizeMessageHistory } from '@/lib/chatHistory';
-import { sanitizeErrorMessage, validateChatRequestMetadata } from '@/lib/apiRequestPolicy';
+import {
+  MAX_REQUEST_BODY_BYTES,
+  sanitizeErrorMessage,
+  validateChatRequestMetadata,
+  validateProviderSelection,
+} from '@/lib/apiRequestPolicy';
 
 const SYSTEM_PROMPTS = {
   openai: 'You are a concise and helpful assistant. Answer in Korean unless the user requests otherwise.',
@@ -97,13 +104,25 @@ export async function POST(request) {
   let sensitiveApiKey = '';
 
   try {
-    const contentLength = Number(request.headers.get('content-length') || 0);
-    const sizeValidationError = validateChatRequestMetadata({}, contentLength);
-    if (sizeValidationError?.status === 413) {
-      return NextResponse.json({ error: sizeValidationError.error }, { status: sizeValidationError.status });
+    const rawBody = await request.text();
+    const bodySize = new TextEncoder().encode(rawBody).byteLength;
+
+    if (bodySize > MAX_REQUEST_BODY_BYTES) {
+      return NextResponse.json(
+        { code: 'REQUEST_TOO_LARGE', error: '요청 본문이 너무 큽니다. 질문이나 대화 기록을 줄여주세요.' },
+        { status: 413 },
+      );
     }
 
-    const body = await request.json();
+    let body;
+    try {
+      body = JSON.parse(rawBody);
+    } catch {
+      return NextResponse.json(
+        { code: 'INVALID_JSON', error: '요청 형식이 올바르지 않습니다. 화면을 새로고침한 뒤 다시 시도해주세요.' },
+        { status: 400 },
+      );
+    }
     const {
       providerId,
       modelId,
@@ -117,9 +136,37 @@ export async function POST(request) {
       history = [],
     } = body || {};
 
-    const validationError = validateChatRequestMetadata(body, contentLength);
+    const validationError = validateChatRequestMetadata(body, bodySize);
     if (validationError) {
-      return NextResponse.json({ error: validationError.error }, { status: validationError.status });
+      return NextResponse.json(
+        { code: validationError.code, error: validationError.error },
+        { status: validationError.status },
+      );
+    }
+
+    const provider = MOCK_AI_PROVIDERS.find((item) => item.id === providerId);
+    const model = MOCK_MODEL_OPTIONS[providerId]?.find((item) => item.id === modelId);
+    const providerValidationError = validateProviderSelection(provider, model);
+    if (providerValidationError) {
+      return NextResponse.json(
+        { code: providerValidationError.code, error: providerValidationError.error },
+        { status: providerValidationError.status },
+      );
+    }
+
+    if (purpose === 'summary') {
+      const hasUnknownSummaryAnswer = Object.entries(answers).some(([answerProviderId, answer]) => {
+        const answerProvider = MOCK_AI_PROVIDERS.find((item) => item.id === answerProviderId);
+        const answerModel = MOCK_MODEL_OPTIONS[answerProviderId]?.find((item) => item.id === answer?.modelId);
+        return Boolean(validateProviderSelection(answerProvider, answerModel));
+      });
+
+      if (hasUnknownSummaryAnswer) {
+        return NextResponse.json(
+          { code: 'INVALID_SUMMARY_ANSWERS', error: '요약할 AI 답변의 서비스 또는 모델 정보가 올바르지 않습니다.' },
+          { status: 400 },
+        );
+      }
     }
 
     const trimmedApiKey = typeof apiKey === 'string' ? apiKey.trim() : '';
@@ -170,9 +217,14 @@ export async function POST(request) {
       cost: buildCostPayload(providerId, modelId, result.usage, mode),
     });
   } catch (error) {
+    const status = Number.isInteger(error?.status) ? error.status : 500;
+    const code = typeof error?.code === 'string' ? error.code : 'INTERNAL_ERROR';
+    const publicMessage = code === 'INTERNAL_ERROR'
+      ? '서버에서 요청을 처리하지 못했습니다. 잠시 후 다시 시도해주세요.'
+      : sanitizeErrorMessage(error, sensitiveApiKey);
     return NextResponse.json(
-      { error: sanitizeErrorMessage(error, sensitiveApiKey) },
-      { status: 500 },
+      { code, error: publicMessage },
+      { status },
     );
   }
 }

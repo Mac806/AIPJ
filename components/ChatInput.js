@@ -35,6 +35,7 @@ export default function ChatInput({
           value={question}
           onChange={(event) => setQuestion(event.target.value)}
           onKeyDown={handleKeyDown}
+          aria-label="메시지"
           placeholder="메시지를 입력하세요..."
           maxLength={12000}
           rows={1}

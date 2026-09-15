@@ -17,11 +17,16 @@ import useUserMode from '@/lib/hooks/useUserMode';
 import useGenerationSettings from '@/lib/hooks/useGenerationSettings';
 import useSummaryPersona from '@/lib/hooks/useSummaryPersona';
 import useAnswerPersonas from '@/lib/hooks/useAnswerPersonas';
+import useAccessibleDialog from '@/lib/hooks/useAccessibleDialog';
 
 export default function HomePage() {
   const [isAiSettingsPanelOpen, setIsAiSettingsPanelOpen] = useState(false);
   const [isPlaceholderSettingsOpen, setIsPlaceholderSettingsOpen] = useState(false);
   const [chatFontSize, setChatFontSize] = useState('md');
+  const aiSettingsDialogRef = useAccessibleDialog(
+    isAiSettingsPanelOpen,
+    () => setIsAiSettingsPanelOpen(false),
+  );
 
 
 
@@ -86,6 +91,9 @@ export default function HomePage() {
     setActiveSessionId,
     activeSession,
     activeTurns,
+    isStorageReady,
+    storageWarning,
+    dismissStorageWarning,
     editingSessionId,
     editingTitle,
     setEditingTitle,
@@ -103,7 +111,10 @@ export default function HomePage() {
     setIsMobileSidebarOpen,
     isSidebarCollapsed,
     setIsSidebarCollapsed,
+    isDesktopViewport,
     isCollapsedView,
+    sidebarRef,
+    sidebarTriggerRef,
     handleSidebarTouchStart,
     handleSidebarTouchMove,
     handleSidebarTouchEnd,
@@ -186,6 +197,20 @@ export default function HomePage() {
     setQuestion('');
   }
 
+  if (!isStorageReady) {
+    return (
+      <main
+        className="flex h-dvh items-center justify-center bg-slate-950 px-6 text-slate-100"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <p className="rounded-2xl border border-white/10 bg-slate-900 px-5 py-4 text-sm text-slate-300">
+          저장된 대화를 불러오는 중입니다...
+        </p>
+      </main>
+    );
+  }
+
 
   return (
     <div className="flex h-dvh min-h-0 overflow-hidden bg-slate-950 text-slate-100">
@@ -199,6 +224,10 @@ export default function HomePage() {
       )}
 
       <aside
+        id="conversation-sidebar"
+        ref={sidebarRef}
+        aria-hidden={!isDesktopViewport && !isMobileSidebarOpen}
+        inert={!isDesktopViewport && !isMobileSidebarOpen}
         className={`fixed inset-y-0 left-0 z-40 flex w-72 min-w-72 flex-col border-r border-white/10 bg-slate-900 p-4 transition-transform duration-200 md:relative md:inset-auto md:z-auto md:translate-x-0 ${
           isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } ${isSidebarCollapsed ? 'md:w-16 md:min-w-16 md:p-3' : 'md:w-72 md:min-w-72'}`}
@@ -294,12 +323,31 @@ export default function HomePage() {
       </aside>
 
       <main className="flex min-w-0 flex-1 flex-col bg-gray-800 p-0">
+        {storageWarning && (
+          <div
+            role="alert"
+            className="flex items-start justify-between gap-3 border-b border-amber-300/20 bg-amber-300/10 px-4 py-3 text-sm text-amber-100"
+          >
+            <p>{storageWarning}</p>
+            <button
+              type="button"
+              onClick={dismissStorageWarning}
+              className="shrink-0 rounded-md px-2 py-0.5 text-xs font-semibold hover:bg-white/10"
+              aria-label="저장 안내 닫기"
+            >
+              닫기
+            </button>
+          </div>
+        )}
         <div className="flex items-center gap-2 border-b border-white/10 bg-slate-900/70 px-3 py-2 md:hidden">
           <button
             type="button"
+            ref={sidebarTriggerRef}
             onClick={() => setIsMobileSidebarOpen(true)}
             className="rounded-lg border border-white/10 bg-slate-800 px-2 py-1 text-sm text-slate-200 transition hover:border-cyan-400/30"
             aria-label="사이드바 열기"
+            aria-controls="conversation-sidebar"
+            aria-expanded={isMobileSidebarOpen}
             title="사이드바 열기"
           >
             ☰
@@ -325,12 +373,26 @@ export default function HomePage() {
         />
       </main>
 
-            {isAiSettingsPanelOpen && (
+      {isAiSettingsPanelOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative max-h-[92vh] w-[95vw] max-w-7xl overflow-y-auto rounded-[1.75rem] border border-white/10 bg-slate-950/70 p-6 shadow-glow">
+          <button
+            type="button"
+            aria-label="모델 설정 닫기"
+            onClick={() => setIsAiSettingsPanelOpen(false)}
+            className="absolute inset-0"
+          />
+          <div
+            ref={aiSettingsDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="ai-settings-dialog-title"
+            tabIndex={-1}
+            className="relative max-h-[92vh] w-[95vw] max-w-7xl overflow-y-auto rounded-[1.75rem] border border-white/10 bg-slate-950/70 p-6 shadow-glow"
+          >
             <button
               type="button"
               onClick={() => setIsAiSettingsPanelOpen(false)}
+              aria-label="모델 설정 닫기"
               className="absolute right-4 top-4 text-slate-400 hover:text-white"
             >
               <svg
@@ -348,7 +410,8 @@ export default function HomePage() {
                 />
               </svg>
                         </button>
-                                    <AiSettingsPanel
+            <AiSettingsPanel
+              dialogTitleId="ai-settings-dialog-title"
               userMode={userMode}
               setUserMode={setUserMode}
               developerParams={developerParams}

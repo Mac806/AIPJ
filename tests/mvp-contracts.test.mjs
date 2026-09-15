@@ -13,6 +13,7 @@ import {
 } from '../lib/modelCapabilities.js';
 import { getExecutionIntegrationStatus, getProviderIntegrationStatus } from '../lib/providerStatus.js';
 import {
+  callProviderAdapter,
   parseAnthropicResponse,
   parseGeminiResponse,
   parseOpenAICompatibleResponse,
@@ -23,6 +24,7 @@ import {
   MAX_REQUEST_BODY_BYTES,
   sanitizeErrorMessage,
   validateChatRequestMetadata,
+  validateProviderSelection,
 } from '../lib/apiRequestPolicy.js';
 
 test('요약 AI 선택 규칙은 1개/2개/3개 이상 정책을 지킨다', () => {
@@ -155,6 +157,36 @@ test('Provider fixture를 공통 text/usage 입력으로 파싱한다', () => {
   );
 });
 
+test('Provider 인증 실패와 호출 제한을 사용자용 오류 코드로 변환한다', async () => {
+  const originalFetch = globalThis.fetch;
+  const request = {
+    providerId: 'openai',
+    modelId: 'gpt-test',
+    apiKey: 'secret',
+    prompt: '질문',
+    purpose: 'answer',
+    generationOptions: {},
+    systemPrompt: 'system',
+    history: [],
+  };
+
+  try {
+    globalThis.fetch = async () => new Response('{"error":{"message":"secret upstream detail"}}', { status: 401 });
+    await assert.rejects(
+      callProviderAdapter(request),
+      (error) => error.code === 'PROVIDER_AUTH_FAILED' && error.status === 401 && !error.message.includes('upstream'),
+    );
+
+    globalThis.fetch = async () => new Response('{}', { status: 429 });
+    await assert.rejects(
+      callProviderAdapter(request),
+      (error) => error.code === 'PROVIDER_RATE_LIMITED' && error.status === 429,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('실행 상태는 mock, BYOK 미검증, 미지원을 구분한다', () => {
   assert.equal(getExecutionIntegrationStatus('test', 'openai'), 'mock');
   assert.equal(getProviderIntegrationStatus('openai'), 'unverified');
@@ -165,8 +197,10 @@ test('취소와 일반 오류를 서로 다른 종료 상태로 정규화한다'
   assert.equal(normalizeRequestFailure(new DOMException('cancel', 'AbortError')).status, 'cancelled');
   assert.deepEqual(normalizeRequestFailure(new Error('network')), {
     status: 'error',
-    text: '요청 실패: network',
+    errorCode: undefined,
+    text: 'network',
   });
+  assert.equal(normalizeRequestFailure(new TypeError('fetch failed')).text, '네트워크 연결을 확인한 뒤 다시 시도해주세요.');
 });
 
 test('API route 입력 계약은 크기, 목적, 키, 질문을 검증한다', () => {
@@ -182,7 +216,44 @@ test('API route 입력 계약은 크기, 목적, 키, 질문을 검증한다', (
   assert.equal(validateChatRequestMetadata(validBody, MAX_REQUEST_BODY_BYTES + 1).status, 413);
   assert.equal(validateChatRequestMetadata({ ...validBody, purpose: 'invalid' }, 100).status, 400);
   assert.equal(validateChatRequestMetadata({ ...validBody, apiKey: '' }, 100).status, 400);
+  assert.equal(validateChatRequestMetadata({ ...validBody, question: '   ' }, 100).code, 'EMPTY_QUESTION');
   assert.equal(validateChatRequestMetadata({ ...validBody, question: 'x'.repeat(12_001) }, 100).status, 400);
+});
+
+test('요약 요청은 비어 있지 않은 정상 답변이 최소 2개 필요하다', () => {
+  const summaryBody = {
+    providerId: 'openai',
+    modelId: 'gpt-test',
+    apiKey: 'TEST',
+    purpose: 'summary',
+    question: '질문',
+    answers: {
+      openai: { modelId: 'gpt-test', text: '첫 답변' },
+    },
+  };
+
+  assert.equal(validateChatRequestMetadata(summaryBody, 100).code, 'INSUFFICIENT_SUMMARY_ANSWERS');
+  assert.equal(validateChatRequestMetadata({
+    ...summaryBody,
+    answers: {
+      ...summaryBody.answers,
+      claude: { modelId: 'claude-test', text: '두 번째 답변' },
+    },
+  }, 100), null);
+  assert.equal(validateChatRequestMetadata({
+    ...summaryBody,
+    answers: {
+      openai: { modelId: 'gpt-test', text: '' },
+      claude: { modelId: 'claude-test', text: '두 번째 답변' },
+    },
+  }, 100).code, 'INVALID_SUMMARY_ANSWERS');
+});
+
+test('알 수 없거나 텍스트 미지원인 Provider와 모델을 거부한다', () => {
+  assert.equal(validateProviderSelection(null, null).code, 'UNKNOWN_PROVIDER');
+  assert.equal(validateProviderSelection({ supportsChat: false }, { id: 'model' }).code, 'UNSUPPORTED_PROVIDER');
+  assert.equal(validateProviderSelection({ supportsChat: true }, null).code, 'UNKNOWN_MODEL');
+  assert.equal(validateProviderSelection({ supportsChat: true }, { id: 'model' }), null);
 });
 
 test('API 오류 메시지는 키와 Authorization 값을 마스킹한다', () => {

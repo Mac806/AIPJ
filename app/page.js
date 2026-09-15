@@ -109,7 +109,7 @@ export default function HomePage() {
     handleSidebarTouchEnd,
   } = useSidebarDrawer();
 
-      const { question, setQuestion, isGenerating, handleSubmit } = useChatOrchestrator({
+      const { question, setQuestion, isGenerating, handleSubmit, handleCancel } = useChatOrchestrator({
     sessions,
     activeSessionId,
     createSession,
@@ -312,12 +312,15 @@ export default function HomePage() {
           activeTurns={activeTurns}
           formattedActiveSessionCreatedAt={formattedActiveSessionCreatedAt}
           chatFontSize={chatFontSize}
+          userMode={userMode}
+          onReuseQuestion={setQuestion}
         />
 
         <ChatInput
           question={question}
           setQuestion={setQuestion}
           handleSubmit={handleSubmit}
+          handleCancel={handleCancel}
           isGenerating={isGenerating}
         />
       </main>

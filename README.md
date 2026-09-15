@@ -30,7 +30,9 @@ AIPJ는 단순한 단일 AI 채팅 앱이 아니라,
 - 요약 기능 ON/OFF 토글
 - 요약 카드 + 원본 답변 모달(Provider 탭)
 - 요약 OFF 전용 탐색 UI(Focus / Split / Grid)
+- Provider별 병렬 요청, timeout, 사용자 취소, 부분 실패 처리
 - 세션 관리(생성/전환/이름변경/삭제/Pin)
+- API 키를 제외한 세션·대화·사용량의 브라우저 저장 및 새로고침 복구
 - 일반 모드 / 개발자 모드 분리
   - 일반 모드: 최신 모델셋 중심, 단순 UX
   - 개발자 모드: BYOK + generation 파라미터 제어
@@ -41,9 +43,16 @@ AIPJ는 단순한 단일 AI 채팅 앱이 아니라,
 - 모델/가격/모드별 노출 정책 정리
 - 최근 lint/build 기준 통과 상태 유지
 
+> 현재 응답 표시 효과는 실제 토큰 스트리밍이 아닙니다. API 응답을 모두 받은 뒤 chunk로 나눠 보여주는 생성 애니메이션이며, 실제 스트리밍은 MVP 이후 범위입니다.
+
 ---
 
 ## 빠른 실행
+
+요구 환경:
+
+- Node.js 20 이상
+- npm 10 이상
 
 ```bash
 npm install
@@ -51,6 +60,54 @@ npm run dev
 ```
 
 브라우저에서 `http://localhost:3000` 접속
+
+현재 MVP는 서버 환경변수에 API 키를 저장하지 않습니다. 개발자 모드의 BYOK 키는 실행 중 브라우저 메모리에만 유지되며, `.env*` 파일은 Git에서 제외됩니다. 향후 서버 설정이 필요해질 경우 비밀값이 없는 `.env.example`만 저장소에 추가합니다.
+
+품질 검사는 아래 순서로 실행합니다.
+
+```bash
+npm run lint
+npm test
+npm run build
+```
+
+---
+
+## 실행 모드
+
+| 모드 | API 호출 | 용도 |
+|---|---|---|
+| 일반 모드 | 호출하지 않음 | `TEST` mock으로 비교·요약 UX 체험 |
+| 개발자 모드 | 사용자 키로 호출 | BYOK 기반 Provider adapter 시험 |
+
+일반 모드의 결과는 실제 AI 답변이 아닙니다. 개발자 모드의 키는 현재 탭 메모리에만 있고 새로고침하면 삭제되며, 대화 저장소·서버·로그에 보관하지 않는 것을 MVP 정책으로 합니다.
+
+## Provider 지원 상태
+
+| Provider | 일반 모드 | BYOK adapter | 현재 상태 |
+|---|---|---|---|
+| OpenAI | Mock | 있음 | 미검증 |
+| Anthropic Claude | Mock | 있음 | 미검증 |
+| Google Gemini | Mock | 있음 | 미검증 |
+| Perplexity | Mock | 있음 | 미검증 |
+| DeepSeek | Mock | 있음 | 미검증 |
+| Mistral | Mock | 있음 | 미검증 |
+| Qwen | Mock | 있음 | 미검증 |
+| Groq | Mock | 있음 | 미검증 |
+| Cohere | 미지원 | 없음 | 목록만 제공 |
+| Suno, Udio, ElevenLabs, Whisper | 미지원 | 없음 | MVP 이후 |
+| FLUX, Stable Diffusion, Roboflow | 미지원 | 없음 | MVP 이후 |
+| Runway, Luma | 미지원 | 없음 | MVP 이후 |
+
+`미검증`은 adapter 코드가 있지만 유료 실 API 전수 확인을 완료하지 않았다는 뜻입니다. 하드코딩된 모델명과 가격도 참고용이며, 비용은 확정 청구액이 아닌 예상치로 표시합니다.
+
+## 현재 제한사항
+
+- 실제 토큰 스트리밍 대신 완성된 응답을 chunk로 나눈 표시 애니메이션을 사용합니다.
+- 대화는 브라우저 localStorage에 저장하고, 사용할 수 없는 환경에서는 IndexedDB로 대체합니다.
+- 문맥은 최근 4턴, 최대 8개 메시지·12,000자까지만 전달합니다.
+- 서버 DB, 계정, 결제, 구독 제한, 서버 키 저장은 구현하지 않았습니다.
+- 비텍스트 Provider 실행과 LangChain/LangGraph 워크플로우는 MVP 이후 범위입니다.
 
 ---
 
@@ -64,13 +121,21 @@ npm run dev
 
 ---
 
-## 다음 우선순위
+## MVP 마감 상태
 
-1. 키 관리 정책 고도화(세션 입력 vs 서버 암호화 저장)
-2. DB 영속화(conversations / turns / usage 등)
-3. 구독/토큰 제한 정책
-4. 비텍스트 모델 결과 텍스트 정규화 파이프라인
-5. LangGraph 등 오케스트레이션 고도화 PoC
+유료 API 전수 검증은 MVP 완료 조건에서 제외하고, mock/fixture와 사용자 BYOK를 기준으로 마감했습니다.
+
+1. [완료] 로컬 빌드와 검사 기준선 복구
+2. [완료] Provider adapter와 지원 상태 표준화
+3. [완료] timeout·취소·부분 실패·비정상 응답 처리
+4. [완료] API 키를 제외한 대화 세션 브라우저 영속화
+5. [완료] 최근 4턴 기반 텍스트 문맥 전달
+6. [완료] API 키 메모리 전용·오류 마스킹 등 보안선 확정
+7. [완료] mock/BYOK/미검증 상태와 오류 UX 마감
+8. [완료] 핵심 정책·파서·저장소 계약 테스트 추가
+9. [완료] 최종 clean install → lint → test → build 검증
+
+Git 커밋과 `v0.1.0` 태그 생성은 사용자 승인 후 별도로 진행합니다.
 
 상세 TODO와 변경 이력은 [`진행상황.md`](./진행상황.md)에서 지속 업데이트합니다.
 

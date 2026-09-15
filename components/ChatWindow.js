@@ -37,6 +37,7 @@ const STATUS_LABELS = {
   loading: '로딩',
   blocked: '차단',
   error: '오류',
+  cancelled: '취소됨',
 };
 
 const CATEGORY_LABELS = {
@@ -200,6 +201,10 @@ function getStatusChipClass(status = '') {
     return 'border-rose-400/30 bg-rose-400/15 text-rose-100';
   }
 
+  if (status === 'cancelled') {
+    return 'border-slate-400/30 bg-slate-400/10 text-slate-200';
+  }
+
   return 'border-white/10 bg-slate-800 text-slate-200';
 }
 
@@ -215,8 +220,10 @@ function getStatusRank(status = '') {
       return 3;
     case 'error':
       return 4;
-    default:
+    case 'cancelled':
       return 5;
+    default:
+      return 6;
   }
 }
 
@@ -238,6 +245,8 @@ export default function ChatWindow({
   activeTurns,
   formattedActiveSessionCreatedAt,
   chatFontSize = 'md',
+  userMode,
+  onReuseQuestion,
 }) {
   const [openedTurnId, setOpenedTurnId] = useState(null);
   const [selectedProviderId, setSelectedProviderId] = useState('');
@@ -374,6 +383,7 @@ export default function ChatWindow({
       loading: 0,
       blocked: 0,
       error: 0,
+      cancelled: 0,
     };
 
     let totalCostUsd = 0;
@@ -408,6 +418,18 @@ export default function ChatWindow({
           <span className={`inline-flex items-center rounded-full border px-2 py-0.5 ${getStatusChipClass(answer.status)}`}>
             {getResponseStatusLabel(answer.status)}
           </span>
+          {answer.integrationStatus && (
+            <>
+              <span>·</span>
+              <span>
+                {answer.integrationStatus === 'mock'
+                  ? 'Mock 응답'
+                  : answer.integrationStatus === 'unverified'
+                    ? 'BYOK 미검증'
+                    : answer.integrationStatus}
+              </span>
+            </>
+          )}
           <span>·</span>
           <span>{answer?.cost?.label ?? '비용'} {formatUSD(answer?.cost?.totalUsd ?? 0)}</span>
         </div>
@@ -434,8 +456,13 @@ export default function ChatWindow({
 
       <div className="w-full space-y-6 pt-4">
         {activeTurns.length === 0 ? (
-          <div className="p-6 text-center text-gray-400">
-            아직 이 대화에는 질문이 없습니다. 질문을 입력하면 여기서 이어집니다.
+          <div className="mx-auto max-w-2xl rounded-2xl border border-white/10 bg-slate-900/50 p-6 text-center text-gray-300">
+            <p>아직 이 대화에는 질문이 없습니다. 질문을 입력하면 여기서 이어집니다.</p>
+            <p className="mt-3 text-xs leading-5 text-slate-400">
+              {userMode === 'general'
+                ? '현재 일반 모드는 TEST mock 데모입니다. 표시되는 내용은 실제 AI 답변이 아닙니다.'
+                : '현재 개발자 모드는 사용자가 입력한 API 키로 요청하는 BYOK 방식입니다. Provider별 실연동은 미검증 상태일 수 있습니다.'}
+            </p>
           </div>
         ) : (
           activeTurns.map((turn) => {
@@ -461,6 +488,9 @@ export default function ChatWindow({
               || turnAnswerCategoryFilter !== DEFAULT_ANSWER_CATEGORY_FILTER;
             const viewColumns = getColumnsForViewMode(turnAnswerViewMode, viewportWidth);
             const useVirtualizedGrid = shouldUseVirtualizedGrid(turnAnswerViewMode, sortedProviderIds.length);
+            const hasRetryableFailure = Object.values(turnAnswers).some(
+              (answer) => answer?.status === 'error' || answer?.status === 'cancelled',
+            ) || turn.summary?.status === 'error' || turn.summary?.status === 'cancelled';
 
             return (
               <div key={turn.id} className="w-full space-y-4">
@@ -576,6 +606,12 @@ export default function ChatWindow({
                               <span>생성중 {visibleAnswerStats.statusCounts.streaming + visibleAnswerStats.statusCounts.loading}</span>
                               <span>·</span>
                               <span>오류 {visibleAnswerStats.statusCounts.error}</span>
+                              {visibleAnswerStats.statusCounts.cancelled > 0 && (
+                                <>
+                                  <span>·</span>
+                                  <span>취소 {visibleAnswerStats.statusCounts.cancelled}</span>
+                                </>
+                              )}
                               <span>·</span>
                               <span>비용 {formatUSD(visibleAnswerStats.totalCostUsd)}</span>
                             </div>
@@ -678,6 +714,18 @@ export default function ChatWindow({
                             <span>
                               {turn.summary?.cost?.label ?? '비용'} {formatSummaryUsd(turn.summary?.cost?.totalUsd ?? 0)}
                             </span>
+                            {turn.summary?.integrationStatus && (
+                              <>
+                                <span>·</span>
+                                <span>
+                                  {turn.summary.integrationStatus === 'mock'
+                                    ? 'Mock 요약'
+                                    : turn.summary.integrationStatus === 'unverified'
+                                      ? 'BYOK 미검증'
+                                      : turn.summary.integrationStatus}
+                                </span>
+                              </>
+                            )}
                           </div>
                           <button
                             type="button"
@@ -703,6 +751,17 @@ export default function ChatWindow({
                     )}
                   </div>
                 </div>
+                {hasRetryableFailure && (
+                  <div className="flex justify-start">
+                    <button
+                      type="button"
+                      onClick={() => onReuseQuestion?.(turn.question)}
+                      className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1.5 text-xs font-semibold text-cyan-100 transition hover:bg-cyan-400/20"
+                    >
+                      이 질문을 입력창에 다시 넣기
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })

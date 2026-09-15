@@ -7,6 +7,7 @@ export default function ChatInput({
   question,
   setQuestion,
   handleSubmit,
+  handleCancel,
   isGenerating,
 }) {
   const textareaRef = useRef(null);
@@ -35,18 +36,21 @@ export default function ChatInput({
           onChange={(event) => setQuestion(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="메시지를 입력하세요..."
+          maxLength={12000}
           rows={1}
           className="min-h-[40px] max-h-40 w-full resize-none bg-transparent py-2 pl-4 pr-12 text-sm text-slate-100 outline-none placeholder:text-slate-500"
         />
         <button
-          type="submit"
-          disabled={isGenerating || !question.trim()}
+          type={isGenerating ? 'button' : 'submit'}
+          onClick={isGenerating ? handleCancel : undefined}
+          disabled={!isGenerating && !question.trim()}
+          aria-label={isGenerating ? '생성 취소' : '메시지 전송'}
+          title={isGenerating ? '생성 취소' : '메시지 전송'}
           className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isGenerating ? (
-            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            <svg className="h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+              <rect x="5" y="5" width="10" height="10" rx="1" />
             </svg>
           ) : (
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">

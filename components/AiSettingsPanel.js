@@ -33,6 +33,21 @@ const PROVIDER_CATEGORY_MAP = {
   luma: 'video',
 };
 
+const INTEGRATION_STATUS_META = {
+  mock: { label: 'Mock', className: 'border-sky-300/30 bg-sky-300/10 text-sky-200' },
+  verified: { label: '실연동 확인', className: 'border-emerald-300/30 bg-emerald-300/10 text-emerald-200' },
+  unverified: { label: 'BYOK 미검증', className: 'border-amber-300/30 bg-amber-300/10 text-amber-200' },
+  unsupported: { label: '미지원', className: 'border-rose-300/30 bg-rose-300/10 text-rose-200' },
+};
+
+function getVisibleIntegrationStatus(provider, userMode) {
+  if (!provider.supportsChat) {
+    return 'unsupported';
+  }
+
+  return userMode === 'general' ? 'mock' : provider.integrationStatus;
+}
+
 export default function AiSettingsPanel({
   userMode,
   setUserMode,
@@ -162,7 +177,7 @@ export default function AiSettingsPanel({
         <p className="mt-2 text-xs text-slate-400">
           {userMode === 'developer'
             ? '개발자 모드: API 키(BYOK), 파라미터, 과거~현재 전체 모델을 직접 설정합니다.'
-            : '일반 모드: 플랫폼 기본 키를 사용하며, AI별 라이트/노말/헤비 모델 중심으로 제공합니다.'}
+            : '일반 모드: 비용이 발생하지 않는 TEST mock으로 제품 흐름을 체험합니다. 실제 AI 응답이 아닙니다.'}
         </p>
 
         <div className="mt-4 space-y-2 rounded-2xl border border-white/10 bg-slate-900/60 p-3 text-xs text-slate-300">
@@ -191,6 +206,9 @@ export default function AiSettingsPanel({
 
         {userMode === 'developer' && (
           <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 p-3">
+            <p className="mb-3 rounded-xl border border-cyan-400/20 bg-cyan-400/5 p-2 text-[11px] leading-5 text-cyan-100">
+              BYOK 키는 현재 탭의 메모리에만 유지되며 대화 저장소나 서버에 보관되지 않습니다. 새로고침하면 삭제됩니다.
+            </p>
             <p className="text-xs font-medium text-slate-300">개발자 파라미터</p>
             <p className="mt-1 text-[11px] text-slate-500">
               허용 범위를 벗어난 값은 자동 보정됩니다. (temperature: 0~2, topP: 0~1, maxTokens: 1~8192)
@@ -268,6 +286,8 @@ export default function AiSettingsPanel({
         {filteredProviders.map((provider) => {
           const isSelected = selectedIds.includes(provider.id);
           const isSummary = summaryAiId === provider.id && isSummaryEnabled;
+          const visibleIntegrationStatus = getVisibleIntegrationStatus(provider, userMode);
+          const integrationStatusMeta = INTEGRATION_STATUS_META[visibleIntegrationStatus];
           const providerModels = getModelsForProvider(provider.id, userMode);
           const selectedModelId = providerModels.some((model) => model.id === selectedModels[provider.id])
             ? selectedModels[provider.id]
@@ -286,7 +306,8 @@ export default function AiSettingsPanel({
                   type="checkbox"
                   checked={isSelected}
                   onChange={() => handleProviderToggle(provider.id)}
-                  className="mt-1 h-4 w-4 rounded border-slate-500 bg-slate-900 text-cyan-400"
+                  disabled={!provider.supportsChat}
+                  className="mt-1 h-4 w-4 rounded border-slate-500 bg-slate-900 text-cyan-400 disabled:cursor-not-allowed disabled:opacity-40"
                 />
                 <div className="min-w-0 flex-1">
                   <label htmlFor={`provider-${provider.id}`} className="cursor-pointer">
@@ -302,10 +323,13 @@ export default function AiSettingsPanel({
                           Summary AI
                         </span>
                       )}
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${integrationStatusMeta.className}`}>
+                        {integrationStatusMeta.label}
+                      </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">{provider.focus}</p>
                     {!provider.supportsChat && (
-                      <p className="mt-1 text-[11px] text-rose-300/90">텍스트 채팅 준비중</p>
+                      <p className="mt-1 text-[11px] text-rose-300/90">목록만 제공되며 현재 실행할 수 없습니다.</p>
                     )}
                   </label>
                 </div>
@@ -454,7 +478,7 @@ export default function AiSettingsPanel({
                 </div>
               ) : (
                 <div className="mt-4 rounded-2xl border border-white/10 bg-slate-900/60 px-4 py-3 text-xs text-slate-400">
-                  일반 모드에서는 플랫폼 기본 키를 사용합니다.
+                  일반 모드에서는 실제 API를 호출하지 않고 TEST mock을 사용합니다.
                 </div>
               )}
             </article>

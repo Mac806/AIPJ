@@ -88,9 +88,9 @@ npm run build
 
 | Provider | 일반 모드 | BYOK adapter | 현재 상태 |
 |---|---|---|---|
-| OpenAI | Mock | 있음 | 미검증 |
+| OpenAI | Mock | 있음 | 실제 응답·요약 직접 확인 (화면 기록 없음) |
 | Anthropic Claude | Mock | 있음 | 미검증 |
-| Google Gemini | Mock | 있음 | 미검증 |
+| Google Gemini | Mock | 있음 | 무료 이용 범위에서 실제 응답 직접 확인 (화면 기록 없음) |
 | Perplexity | Mock | 있음 | 미검증 |
 | DeepSeek | Mock | 있음 | 미검증 |
 | Mistral | Mock | 있음 | 미검증 |
@@ -101,7 +101,42 @@ npm run build
 | FLUX, Stable Diffusion, Roboflow | 미지원 | 없음 | MVP 이후 |
 | Runway, Luma | 미지원 | 없음 | MVP 이후 |
 
-`미검증`은 adapter 코드가 있지만 유료 실 API 전수 확인을 완료하지 않았다는 뜻입니다. 하드코딩된 모델명과 가격도 참고용이며, 비용은 확정 청구액이 아닌 예상치로 표시합니다.
+`미검증`은 adapter 코드가 있지만 실제 API로 응답을 확인하지 않았다는 뜻입니다. 3개 이상 Provider를 동시에 실제 호출하는 조합도 아직 확인하지 않았습니다. 하드코딩된 모델명과 가격도 참고용이며, 비용은 확정 청구액이 아닌 예상치로 표시합니다.
+
+## 개발하며 막힌 점과 해결
+
+### AI마다 다른 요청·응답 형식
+
+처음에는 모든 AI에 같은 형식으로 요청하면 될 것이라 생각했지만, 실제로 연결해 보니 응답을 받지 못했습니다. Provider마다 인증 헤더, 요청 본문 구조, 응답에서 답변이 들어 있는 위치가 달랐습니다.
+
+| 구분 | OpenAI 호환 | Anthropic | Gemini |
+|---|---|---|---|
+| 인증 | `Authorization: Bearer` 헤더 | `x-api-key` 헤더 | 요청 URL의 `key` 파라미터 |
+| 요청 본문 | `messages` | `messages` + 필수 `max_tokens` | `contents[].parts`, `systemInstruction`, `generationConfig` |
+| 답변 위치 | `choices[0].message.content` | `content[]` | `candidates[0].content.parts[]` |
+
+그래서 앱 내부는 하나의 공통 형식(질문, 대화 문맥, 생성 옵션 → `text`, `usage`)만 다루고, Provider별 차이는 [`lib/providers/serverAdapters.js`](./lib/providers/serverAdapters.js)의 어댑터에서 변환하도록 나눴습니다. 새 Provider를 붙일 때 화면이나 요약 로직을 고치지 않고 어댑터만 추가하면 됩니다. 각 Provider의 응답 예시를 공통 형식으로 파싱하는지는 계약 테스트로 확인합니다.
+
+### API 비용 없이 검증하기
+
+여러 AI를 실제로 호출해 테스트하려면 비용을 직접 부담해야 했습니다. 그래서 일반 모드는 mock 응답으로 동작하게 하고, 핵심 정책은 `tests/mvp-contracts.test.mjs`의 계약 테스트 16개로 검증합니다.
+
+- 요약 AI 선택 규칙(1개/2개/3개 이상)
+- 대화 문맥의 길이 제한과 역할 정리
+- Provider 응답 파싱과 인증 실패·호출 제한의 오류 코드 변환
+- 저장 데이터에서 API 키 계열 필드 제거, 오류 메시지의 키 마스킹
+- 손상된 세션 데이터 거부와 새로고침 시 진행 중 응답 복구
+- 요약은 정상 답변이 2개 이상일 때만 실행
+
+### 직접 써 보며 고친 화면
+
+비교 결과를 읽기 쉽게 만들기 위해 직접 사용하면서 불편한 점을 찾아 화면을 반복해서 수정했습니다. 요약을 끈 상태에서 원본 답변을 보는 Focus / Split / Grid 화면이 그 결과입니다.
+
+### 다음 단계
+
+비용 제약을 줄이기 위해 로컬에서 실행하는 모델을 어댑터로 연결해, 3개 이상 AI 조합을 비용 없이 테스트하는 방향을 검토하고 있습니다.
+
+---
 
 ## 현재 제한사항
 
@@ -139,8 +174,6 @@ npm run build
 8. [완료] 핵심 정책·파서·저장소 계약 테스트 추가
 9. [완료] 최종 clean install → lint → test → build 검증
 10. [완료] 서버 입력 경계·오류 코드·요약 정상 답변 조건·저장 실패 안내·모달/모바일 접근성 보강
-
-Git 커밋과 `v0.1.0` 태그 생성은 사용자 승인 후 별도로 진행합니다.
 
 상세 TODO와 변경 이력은 [`진행상황.md`](./진행상황.md)에서 지속 업데이트합니다.
 
